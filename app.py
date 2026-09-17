@@ -1,13 +1,15 @@
 import streamlit as st
 import smtplib
+import urllib.request
 import io
 from docx import Document
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
-st.set_page_config(page_title="Plan B - Direct Word Content Engine", page_icon="📄", layout="wide")
+st.set_page_config(page_title="Plan B - Direct Drive Engine", page_icon="🏢", layout="wide")
 
+# ฐานข้อมูลลูกค้าและอีเมลที่เชื่อมไว้ในระบบ (ดึงมาให้อัตโนมัติ ไม่ต้องกรอกเอง)
 CLIENT_DATABASE = [
     {"company": "บริษัท คอสเมคอน จำกัด", "email": "cosmecon.th@gmail.com"},
     {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "email": "beauteousderma@gmail.com"},
@@ -15,87 +17,78 @@ CLIENT_DATABASE = [
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# ฟังก์ชันดึงข้อความและรูปภาพตามลำดับเดิมในไฟล์ Word 100%
-def parse_exact_docx(docx_file):
-    doc = Document(docx_file)
+# ลิงก์ตรงไฟล์ Word Sales Note ใน Google Drive ของ Plan B
+DRIVE_DOCX_LINKS = {
+    "Central Park (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Central Park (ENG)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "The 20 (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx"
+}
+
+def parse_docx_from_url(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    file_bytes = urllib.request.urlopen(req).read()
+    doc = Document(io.BytesIO(file_bytes))
     
-    # ดึงข้อความตามลำดับบรรทัดเดิมใน Word
-    text_paragraphs = [p.text for p in doc.paragraphs if p.text.strip() != ""]
+    paragraphs = [p.text for p in doc.paragraphs if p.text.strip() != ""]
     
-    # ดึงรูปภาพทั้งหมดที่อยู่ในไฟล์ Word
-    image_list = []
+    images = []
     for rel in doc.part.rels.values():
         if "image" in rel.target_ref:
             img_part = rel.target_part
-            image_list.append(img_part.blob)
+            images.append(img_part.blob)
             
-    return text_paragraphs, image_list
+    return paragraphs, images
 
 with st.sidebar:
     st.title("Plan B Media")
-    st.caption("EXACT WORD CONTENT ENGINE")
-    step = st.radio("ขั้นตอนการทำงาน", ["01 อัปโหลด Word & เลือกลูกค้า", "02 ตรวจสอบข้อความและรูปต้นฉบับ", "03 ยืนยันการส่ง Email"])
+    st.caption("DIRECT GOOGLE DRIVE ENGINE")
+    step = st.radio("ขั้นตอน", ["01 เลือกสื่อและกลุ่มลูกค้า", "02 พรีวิวเนื้อหาจาก Drive", "03 ยืนยันการส่ง Email"])
 
-st.markdown("## 🏢 PLAN B MEDIA • DIRECT WORD AUTOMATION")
+st.markdown("## 🏢 PLAN B MEDIA • GOOGLE DRIVE AUTOMATION")
 
 # --- STEP 01 ---
 if "01" in step:
-    st.subheader("STEP 01 : อัปโหลดไฟล์ Word Sales Note (ดึงเนื้อหาและรูปภาพตรง 100%)")
+    st.subheader("STEP 01 : เลือกสื่อ Sales Note และลูกค้ารายเป้าหมาย (ดึงตรงจาก Drive)")
     
     col1, col2 = st.columns(2)
     with col1:
-        uploaded_doc = st.file_uploader("เลือกไฟล์ Sales Note (.docx):", type=["docx"])
-        all_clients = [f"{c['company']} ({c['email']})" for c in CLIENT_DATABASE]
-        selected_raw = st.multiselect("เลือกลูกค้าที่จะส่งหา:", options=all_clients, default=[all_clients[0]])
+        st.write("📂 **เลือกไฟล์ Sales Note จาก Google Drive:**")
+        selected_media = st.selectbox("สื่อที่ต้องการเสนอขาย:", list(DRIVE_DOCX_LINKS.keys()))
         
     with col2:
-        subject_line = st.text_input(
-            "ระบุหัวข้ออีเมล (Subject):", 
-            value="[Plan B Media] เปิดตัวจอ Signature ใหม่ล่าสุด! Central Park – สื่อดิจิทัลพรีเมียมใจกลางกรุงเทพฯ"
-        )
+        st.write("👥 **เลือกกลุ่มลูกค้าจากฐานข้อมูล (ไม่ต้องกรอกเอง):**")
+        client_options = [f"{c['company']} ({c['email']})" for c in CLIENT_DATABASE]
+        selected_clients = st.multiselect("รายชื่อลูกค้าเป้าหมาย:", options=client_options, default=client_options)
 
-    if st.button("📥 ดึงข้อมูลตรงจากไฟล์ Word"):
-        if uploaded_doc is not None:
-            paragraphs, images = parse_exact_docx(uploaded_doc)
+    if st.button("🚀 ดึงข้อความและรูปภาพตรงจาก Google Drive"):
+        with st.spinner("กำลังเชื่อมต่อ Google Drive และดึงไฟล์ Word..."):
+            docx_url = DRIVE_DOCX_LINKS[selected_media]
+            paragraphs, images = parse_docx_from_url(docx_url)
             
-            targets = []
-            for raw in selected_raw:
-                for item in CLIENT_DATABASE:
-                    if item["company"] in raw:
-                        targets.append(item)
-                        break
-                        
+            targets = [c for c in CLIENT_DATABASE if f"{c['company']} ({c['email']})" in selected_clients]
+            
             st.session_state["targets"] = targets
-            st.session_state["subject"] = subject_line
             st.session_state["docx_paragraphs"] = paragraphs
             st.session_state["docx_images"] = images
+            st.session_state["media_title"] = selected_media
             
-            st.success(f"ดึงข้อมูลสำเร็จ! พบข้อความ {len(paragraphs)} ย่อหน้า และรูปภาพ {len(images)} รูป (ดึงมาตรงตามไฟล์ Word 100%)")
-        else:
-            st.warning("กรุณาอัปโหลดไฟล์ Word (.docx) ก่อนทำขั้นตอนถัดไปครับ")
+            st.success(f"ดึงไฟล์ Word และรูปภาพจาก Google Drive สำเร็จ! เลือกไว้ {len(targets)} รายบริษัท ➔ ไปที่ STEP 02")
 
 # --- STEP 02 ---
 elif "02" in step:
-    st.subheader("STEP 02 : ตรวจสอบตัวอย่างอีเมล (คงต้นฉบับเดิม + ใส่ชื่อลูกค้าให้อัตโนมัติ)")
-    
+    st.subheader("STEP 02 : พรีวิวข้อความและรูปภาพจริงจาก Google Drive")
     if "docx_paragraphs" in st.session_state:
         targets = st.session_state.get("targets", [])
         paragraphs = st.session_state.get("docx_paragraphs", [])
         images = st.session_state.get("docx_images", [])
         
+        st.info(f"ดึงข้อมูลตรงจากไฟล์ Word ใน Drive เรียบร้อยแล้ว (จะระบุชื่อบริษัทลูกค้าให้อัตโนมัติ)")
+        
         first_client = targets[0]
-        
-        st.write(f"**ตัวอย่างส่งถึง:** คุณ ทีมการตลาด ({first_client['company']})")
-        st.markdown("---")
-        
-        # สร้างเนื้อหา HTML โดยไม่แก้ข้อความเดิม
         body_content = f"<p style='margin-bottom: 15px;'><b>เรียน คุณ ทีมการตลาด {first_client['company']}</b></p>"
-        
-        # ใส่ข้อความต้นฉบับทีละย่อหน้า
         for p in paragraphs:
             body_content += f"<p style='margin-bottom: 12px;'>{p}</p>"
             
-        # สร้างตารางวางรูปภาพแบบคู่ตามต้นฉบับ Word
         if len(images) >= 2:
             img_table = """
             <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
@@ -117,16 +110,13 @@ elif "02" in step:
             {img_table}
         </div>
         """
-        
         st.components.v1.html(preview_html, height=550, scrolling=True)
 
 # --- STEP 03 ---
 elif "03" in step:
-    st.subheader("STEP 03 : ยืนยันและจัดส่งอีเมล")
-    
+    st.subheader("STEP 03 : ยืนยันการจัดส่ง Batch Email")
     if "docx_paragraphs" in st.session_state:
         targets = st.session_state.get("targets", [])
-        subj = st.session_state.get("subject", "")
         paragraphs = st.session_state.get("docx_paragraphs", [])
         images = st.session_state.get("docx_images", [])
         
@@ -136,7 +126,7 @@ elif "03" in step:
         with col_b:
             pwd = st.text_input("Google App Password:", value="szqfthyetnrmuulr", type="password")
             
-        if st.button("🚀 ยืนยันการส่ง Email ต้นฉบับจาก Word ทันที", type="primary"):
+        if st.button("🚀 ส่ง Email หาพร้อมกันทุกบริษัททันที", type="primary"):
             try:
                 server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
                 server.login(sender, pwd)
@@ -145,17 +135,15 @@ elif "03" in step:
                     msg = MIMEMultipart('related')
                     msg['From'] = sender
                     msg['To'] = client['email']
-                    msg['Subject'] = subj
+                    msg['Subject'] = f"[Plan B Media] เปิดตัวสื่อใหม่ล่าสุด {st.session_state.get('media_title')}"
                     
                     msg_alt = MIMEMultipart('alternative')
                     msg.attach(msg_alt)
                     
-                    # ประกอบข้อความ 100% จาก Word + แทรกชื่อบริษัทลูกค้า
                     client_body = f"<p style='margin-bottom: 15px;'><b>เรียน คุณ ทีมการตลาด {client['company']}</b></p>"
                     for p in paragraphs:
                         client_body += f"<p style='margin-bottom: 12px;'>{p}</p>"
                         
-                    # ตารางวางรูปภาพคู่
                     if len(images) >= 2:
                         img_html = """
                         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
@@ -184,7 +172,6 @@ elif "03" in step:
                     
                     msg_alt.attach(MIMEText(final_email_html, 'html', 'utf-8'))
                     
-                    # ฝังไฟล์รูปภาพจาก Word ลงในอีเมลโดยตรง (กันกากบาท)
                     for idx, img_bytes in enumerate(images):
                         img_mime = MIMEImage(img_bytes)
                         img_mime.add_header('Content-ID', f'<word_img_{idx}>')
@@ -194,6 +181,6 @@ elif "03" in step:
                     
                 server.quit()
                 st.balloons()
-                st.success("🎉 ส่งอีเมลตรงตามไฟล์ Word ต้นฉบับสำเร็จเรียบร้อยครับ!")
+                st.success("🎉 ส่งอีเมลสำเร็จ! ดึงข้อมูลจาก Google Drive และ Database เรียบร้อย 100%")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
