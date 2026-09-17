@@ -11,7 +11,7 @@ st.markdown("""
     div[data-testid="stSidebar"] { background-color: #060a0f; }
     .stButton>button { background-color: #00c6ff; color: black; font-weight: bold; border-radius: 8px; width: 100%; }
     .action-btn {
-        display: inline-block;
+        display: block;
         background-color: #ea4335;
         color: #ffffff !important;
         font-weight: bold;
@@ -59,10 +59,10 @@ if "01" in step:
             st.session_state["client_name"] = client_name
             st.session_state["recipient_email"] = recipient_email
             
-            # ร่างข้อความตามประกาศจริงของ Plan B
-            template_text = f"""Subject: [Update] ยกระดับการมองเห็นให้แบรนด์ {client_name} ด้วยสื่อ Bus Half Wrap โฉมใหม่ (พื้นที่ใหญ่ขึ้น ในราคาเดิม)
-
-เรียน ทีมการตลาด {client_name}
+            # แยก Subject และ Body ให้ชัดเจน
+            st.session_state["email_subject"] = f"[Update] ยกระดับการมองเห็นให้แบรนด์ {client_name} ด้วยสื่อ Bus Half Wrap โฉมใหม่ (พื้นที่ใหญ่ขึ้น ในราคาเดิม)"
+            
+            st.session_state["email_body"] = f"""เรียน ทีมการตลาด {client_name}
 
 บริษัท แพลน บี มีเดีย จำกัด (มหาชน) ขอขอบพระคุณที่ท่านให้ความไว้วางใจเลือกใช้บริการสื่อโฆษณาของเรามาโดยตลอด
 
@@ -74,9 +74,8 @@ if "01" in step:
 หากต้องการข้อมูลเพิ่มเติมหรือ Media Spec ขนาดใหม่ สามารถติดต่อ AE ผู้ดูแลได้ทันทีครับ
 
 ขอแสดงความนับถือ
-ทีมงาน Plan B Media
-"""
-            st.session_state["generated_email"] = template_text
+ทีมงาน Plan B Media"""
+
             st.success("สร้างร่างอีเมลสำเร็จ! กดไปที่เมนู '02 Preview & Edit Email' ด้านซ้ายเพื่อดู/แก้ไข")
         else:
             st.warning("กรุณากรอกชื่อลูกค้าก่อนครับ")
@@ -84,9 +83,12 @@ if "01" in step:
 # --- STEP 02: ตรวจแก้ไข ---
 elif "02" in step:
     st.subheader("STEP 02 / 03 : ตรวจสอบและแก้ไขอีเมล")
-    if "generated_email" in st.session_state:
-        edited = st.text_area("ปรับแก้ไขข้อความได้ตามต้องการ:", value=st.session_state["generated_email"], height=320)
-        st.session_state["final_email"] = edited
+    if "email_body" in st.session_state:
+        subj = st.text_input("แก้ไขหัวข้ออีเมล (Subject):", value=st.session_state.get("email_subject", ""))
+        body = st.text_area("แก้ไขเนื้อหาอีเมล (Body):", value=st.session_state.get("email_body", ""), height=280)
+        
+        st.session_state["email_subject"] = subj
+        st.session_state["email_body"] = body
         st.info("แก้ไขเสร็จแล้ว กดไปที่เมนู '03 Send Email' ด้านซ้าย")
     else:
         st.warning("กรุณาไปที่ STEP 01 เพื่อสร้างอีเมลก่อนครับ")
@@ -95,27 +97,24 @@ elif "02" in step:
 elif "03" in step:
     st.subheader("STEP 03 / 03 : ส่งอีเมลด้วยบัญชี @planbmedia.co.th")
     
-    if "final_email" in st.session_state:
+    if "email_body" in st.session_state:
         recipient = st.session_state.get('recipient_email', '')
-        final_text = st.session_state.get("final_email", "")
+        subj = st.session_state.get('email_subject', '')
+        body = st.session_state.get('email_body', '')
         
         st.write(f"**อีเมลผู้รับ:** `{recipient if recipient else 'ยังไม่ได้ระบุ'}`")
+        st.text_input("หัวข้ออีเมล:", value=subj, disabled=True)
+        st.text_area("เนื้อหาอีเมล:", value=body, height=200, disabled=True)
         
-        # แสดงข้อความอีเมลพร้อมกล่อง Copy
-        st.text_area("เนื้อหาที่จะนำไปส่ง:", value=final_text, height=220)
+        # Encode URL ให้ปลอดภัย
+        encoded_subj = urllib.parse.quote(subj)
+        encoded_body = urllib.parse.quote(body)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### วิธีที่ 1: เปิดหน้า Compose ใน Gmail")
-            st.markdown(f'<a href="https://mail.google.com/mail/?view=cm&fs=1&to={recipient}" target="_blank" class="action-btn">✉️ เปิดหน้าเขียนอีเมลใน Gmail Plan B</a>', unsafe_allow_html=True)
-            
-        with col2:
-            st.markdown("#### วิธีที่ 2: ใช้โปรแกรม Mail/Outlook ในเครื่อง")
-            lines = final_text.split("\n", 1)
-            subj = lines[0].replace("Subject: ", "") if lines else ""
-            bod = lines[1] if len(lines) > 1 else final_text
-            mailto_url = f"mailto:{recipient}?subject={urllib.parse.quote(subj)}&body={urllib.parse.quote(bod)}"
-            st.markdown(f'<a href="{mailto_url}" target="_blank" class="action-btn" style="background-color: #00c6ff; color: #000 !important;">🚀 เปิดโปรแกรม Mail ในเครื่อง</a>', unsafe_allow_html=True)
+        # ลิงก์ Gmail แบบดึงทั้ง Subject และ Body เข้าไปอัตโนมัติ
+        gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={recipient}&su={encoded_subj}&body={encoded_body}"
+        
+        st.markdown("---")
+        st.markdown(f'<a href="{gmail_url}" target="_blank" class="action-btn">✉️ กดตรงนี้เพื่อเปิดร่างอีเมลใน Gmail (พร้อมเนื้อหา)</a>', unsafe_allow_html=True)
             
     else:
         st.warning("กรุณาไปที่ STEP 01 เพื่อสร้างอีเมลก่อนครับ")
