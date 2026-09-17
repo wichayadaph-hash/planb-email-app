@@ -11,51 +11,49 @@ from email.mime.image import MIMEImage
 
 st.set_page_config(page_title="Plan B Media Email Automation", page_icon="🏢", layout="wide")
 
-# ฐานข้อมูลลูกค้าแบบแยกชื่อบริษัท และชื่อผู้รับ
 CLIENT_DATABASE = [
     {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
     {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# 📌 ลิงก์ดึงไฟล์ Word แยกตาม ID จริงของแต่ละสื่อจาก Google Drive
+# ลิงก์ตรงสำหรับ Export ไฟล์ Word (.docx) จาก Google Drive
 DRIVE_DOCX_LINKS = {
     "Central Park (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
     "Central Park (ENG)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
     "The 20 (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    
-    # 📌 ลิงก์ Outthere แยกไฟล์จริงตามหัวข้อ
-    "Outthere - Real-life Experience Ecosystem 2026": "https://docs.google.com/document/d/1260226_update_media_The_Next_Era_PlanB/export?format=docx",
-    "Outthere - Beauty 3D OOH Campaign": "https://docs.google.com/document/d/1outthere_apr_2024_beauty_3d/export?format=docx",
-    "Outthere - Sports Marketing Strategy": "https://docs.google.com/document/d/1250825_ENG_VER_Outthere_Sports/export?format=docx",
-    "Outthere - Synergy VGI Network": "https://docs.google.com/document/d/1outthere_05_mayEdit_Synergy_VGI/export?format=docx"
+    "Outthere - Real-life Experience Ecosystem 2026": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Outthere - Sports Marketing Strategy": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Outthere - Beauty 3D OOH Campaign": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx"
 }
 
 def convert_docx_to_perfect_html(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    file_bytes = urllib.request.urlopen(req).read()
-    
-    image_store = []
-    
-    def convert_image(image):
-        with image.open() as image_bytes:
-            data = image_bytes.read()
-            cid = f"img_{len(image_store)}"
-            image_store.append((cid, data, image.content_type))
-            return {"src": f"cid:{cid}"}
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        file_bytes = urllib.request.urlopen(req).read()
+        
+        image_store = []
+        
+        def convert_image(image):
+            with image.open() as image_bytes:
+                data = image_bytes.read()
+                cid = f"img_{len(image_store)}"
+                image_store.append((cid, data, image.content_type))
+                return {"src": f"cid:{cid}"}
 
-    result = mammoth.convert_to_html(io.BytesIO(file_bytes), convert_image=mammoth.images.inline(convert_image))
-    raw_html = result.value
-    
-    # ดึง Subject จากในไฟล์ Word
-    subject = "เปิดตัวสื่อใหม่ล่าสุดจาก Plan B Media"
-    subject_match = re.search(r'Subject:\s*(.*?)(</p>|<br>|\n|$)', raw_html, re.IGNORECASE)
-    if subject_match:
-        subject = subject_match.group(1).strip()
-        subject = re.sub(r'<[^>]*>', '', subject)
-        raw_html = re.sub(r'<p>.*?Subject:\s*.*?</p>', '', raw_html, flags=re.IGNORECASE)
+        result = mammoth.convert_to_html(io.BytesIO(file_bytes), convert_image=mammoth.images.inline(convert_image))
+        raw_html = result.value
+        
+        subject = "เปิดตัวสื่อใหม่ล่าสุดจาก Plan B Media"
+        subject_match = re.search(r'Subject:\s*(.*?)(</p>|<br>|\n|$)', raw_html, re.IGNORECASE)
+        if subject_match:
+            subject = subject_match.group(1).strip()
+            subject = re.sub(r'<[^>]*>', '', subject)
+            raw_html = re.sub(r'<p>.*?Subject:\s*.*?</p>', '', raw_html, flags=re.IGNORECASE)
 
-    return raw_html, subject, image_store
+        return raw_html, subject, image_store, None
+    except Exception as e:
+        return None, None, None, str(e)
 
 EMAIL_CSS = """
 <style>
@@ -65,33 +63,12 @@ EMAIL_CSS = """
         color: #222222 !important;
         line-height: 1.6 !important;
     }
-    p {
-        margin-top: 0 !important;
-        margin-bottom: 12px !important;
-    }
-    table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-        margin: 15px 0 !important;
-    }
-    td {
-        vertical-align: top !important;
-        padding: 4px !important;
-    }
-    img {
-        max-width: 100% !important;
-        height: auto !important;
-        display: block !important;
-        border-radius: 4px !important;
-    }
-    ul, ol {
-        margin-top: 5px !important;
-        margin-bottom: 15px !important;
-        padding-left: 20px !important;
-    }
-    li {
-        margin-bottom: 6px !important;
-    }
+    p { margin-top: 0 !important; margin-bottom: 12px !important; }
+    table { width: 100% !important; border-collapse: collapse !important; margin: 15px 0 !important; }
+    td { vertical-align: top !important; padding: 4px !important; }
+    img { max-width: 100% !important; height: auto !important; display: block !important; border-radius: 4px !important; }
+    ul, ol { margin-top: 5px !important; margin-bottom: 15px !important; padding-left: 20px !important; }
+    li { margin-bottom: 6px !important; }
 </style>
 """
 
@@ -125,29 +102,32 @@ if "01" in step:
     st.markdown("---")
     if st.button("🚀 ดึงไฟล์ Word ของหัวข้อที่เลือก และประมวลผล", type="primary"):
         with st.spinner(f"กำลังดึงข้อมูลสื่อหัวข้อ '{selected_media}'..."):
-            raw_html, subject, image_store = convert_docx_to_perfect_html(DRIVE_DOCX_LINKS[selected_media])
+            raw_html, subject, image_store, error_msg = convert_docx_to_perfect_html(DRIVE_DOCX_LINKS[selected_media])
             
-            final_targets = []
-            for c in CLIENT_DATABASE:
-                if f"{c['company']} - {c['contact_name']}" in selected_clients:
-                    final_targets.append(c)
-                    
-            if custom_company.strip() and custom_email.strip():
-                final_targets.append({
-                    "company": custom_company.strip(),
-                    "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
-                    "email": custom_email.strip()
-                })
-                
-            if not final_targets:
-                st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+            if error_msg:
+                st.error(f"ไม่สามารถดาวน์โหลดไฟล์ได้ กรุณาเช็คการตั้งค่า Permission ของไฟล์ใน Drive: {error_msg}")
             else:
-                st.session_state["targets"] = final_targets
-                st.session_state["raw_html"] = raw_html
-                st.session_state["subject"] = subject
-                st.session_state["image_store"] = image_store
-                st.session_state["sender_phone"] = sender_phone
-                st.success(f"ดึงข้อมูลหัวข้อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
+                final_targets = []
+                for c in CLIENT_DATABASE:
+                    if f"{c['company']} - {c['contact_name']}" in selected_clients:
+                        final_targets.append(c)
+                        
+                if custom_company.strip() and custom_email.strip():
+                    final_targets.append({
+                        "company": custom_company.strip(),
+                        "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
+                        "email": custom_email.strip()
+                    })
+                    
+                if not final_targets:
+                    st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+                else:
+                    st.session_state["targets"] = final_targets
+                    st.session_state["raw_html"] = raw_html
+                    st.session_state["subject"] = subject
+                    st.session_state["image_store"] = image_store
+                    st.session_state["sender_phone"] = sender_phone
+                    st.success(f"ดึงข้อมูลหัวข้อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
 
 # --- STEP 02 ---
 elif "02" in step:
