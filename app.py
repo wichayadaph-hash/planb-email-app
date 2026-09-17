@@ -10,22 +10,20 @@ st.markdown("""
     .stApp { background-color: #0b1118; color: #ffffff; }
     div[data-testid="stSidebar"] { background-color: #060a0f; }
     .stButton>button { background-color: #00c6ff; color: black; font-weight: bold; border-radius: 8px; width: 100%; }
-    .send-btn {
+    .action-btn {
         display: inline-block;
-        background-color: #00c6ff;
-        color: #000000 !important;
+        background-color: #ea4335;
+        color: #ffffff !important;
         font-weight: bold;
-        padding: 14px 24px;
+        padding: 12px 20px;
         text-align: center;
         border-radius: 8px;
         text-decoration: none;
         width: 100%;
-        font-size: 18px;
-        margin-top: 15px;
+        font-size: 16px;
+        margin-top: 10px;
     }
-    .send-btn:hover {
-        background-color: #0099cc;
-    }
+    .action-btn:hover { background-color: #c5221f; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,18 +99,23 @@ elif "03" in step:
         recipient = st.session_state.get('recipient_email', '')
         final_text = st.session_state.get("final_email", "")
         
-        # แยก Subject และ Body
-        lines = final_text.split("\n", 1)
-        subject = lines[0].replace("Subject: ", "") if lines else ""
-        body = lines[1] if len(lines) > 1 else final_text
-
-        st.write(f"**อีเมลผู้รับ:** {recipient if recipient else 'ยังไม่ได้ระบุ'}")
-        st.text_area("เนื้อหาที่จะส่ง:", value=final_text, height=220, disabled=True)
+        st.write(f"**อีเมลผู้รับ:** `{recipient if recipient else 'ยังไม่ได้ระบุ'}`")
         
-        # encode สำหรับสร้าง mailto link
-        mailto_url = f"mailto:{recipient}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+        # แสดงข้อความอีเมลพร้อมกล่อง Copy
+        st.text_area("เนื้อหาที่จะนำไปส่ง:", value=final_text, height=220)
         
-        st.markdown("---")
-        st.markdown(f'<a href="{mailto_url}" target="_blank" class="send-btn">🚀 กดตรงนี้เพื่อเปิด Outlook / Mail แล้วกดส่งด้วย @planbmedia.co.th ทันที</a>', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("#### วิธีที่ 1: เปิดหน้า Compose ใน Gmail")
+            st.markdown(f'<a href="https://mail.google.com/mail/?view=cm&fs=1&to={recipient}" target="_blank" class="action-btn">✉️ เปิดหน้าเขียนอีเมลใน Gmail Plan B</a>', unsafe_allow_html=True)
+            
+        with col2:
+            st.markdown("#### วิธีที่ 2: ใช้โปรแกรม Mail/Outlook ในเครื่อง")
+            lines = final_text.split("\n", 1)
+            subj = lines[0].replace("Subject: ", "") if lines else ""
+            bod = lines[1] if len(lines) > 1 else final_text
+            mailto_url = f"mailto:{recipient}?subject={urllib.parse.quote(subj)}&body={urllib.parse.quote(bod)}"
+            st.markdown(f'<a href="{mailto_url}" target="_blank" class="action-btn" style="background-color: #00c6ff; color: #000 !important;">🚀 เปิดโปรแกรม Mail ในเครื่อง</a>', unsafe_allow_html=True)
+            
     else:
         st.warning("กรุณาไปที่ STEP 01 เพื่อสร้างอีเมลก่อนครับ")
