@@ -5,7 +5,7 @@ import io
 import re
 import mammoth
 import base64
-import fitz  # PyMuPDF สำหรับอ่านไฟล์ PDF
+import fitz  # PyMuPDF
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
@@ -18,64 +18,68 @@ CLIENT_DATABASE = [
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# ลิงก์สำหรับดึงไฟล์ทั้ง Word (.docx) และ PDF (.pdf)
+# 📌 ลิงก์ดึงไฟล์ตรง ปรับให้ดึงจาก ID ไฟล์เดี่ยวเพื่อป้องกัน HTTP Error
 DRIVE_DOCX_LINKS = {
     "Central Park (TH)": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"},
     "Central Park (ENG)": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"},
     "The 20 (TH)": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"},
     
-    # สื่อ Outthere ที่เป็น PDF
-    "Outthere - Real-life Experience Ecosystem 2026": {"url": "https://drive.google.com/uc?export=download&id=1CkxsDgnVEirqR4p1TWGeTVFE-HbO4wXT", "type": "pdf"},
-    "Outthere - Sports Marketing Strategy": {"url": "https://drive.google.com/uc?export=download&id=1CkxsDgnVEirqR4p1TWGeTVFE-HbO4wXT", "type": "pdf"},
-    "Outthere - Beauty 3D OOH Campaign": {"url": "https://drive.google.com/uc?export=download&id=1CkxsDgnVEirqR4p1TWGeTVFE-HbO4wXT", "type": "pdf"}
+    # สำหรับ Outthere
+    "Outthere - Real-life Experience Ecosystem 2026": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"},
+    "Outthere - Sports Marketing Strategy": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"},
+    "Outthere - Beauty 3D OOH Campaign": {"url": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx", "type": "docx"}
 }
 
 def convert_docx_to_perfect_html(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    file_bytes = urllib.request.urlopen(req).read()
-    image_store = []
-    
-    def convert_image(image):
-        with image.open() as image_bytes:
-            data = image_bytes.read()
-            cid = f"img_{len(image_store)}"
-            image_store.append((cid, data, image.content_type))
-            return {"src": f"cid:{cid}"}
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        file_bytes = urllib.request.urlopen(req).read()
+        image_store = []
+        
+        def convert_image(image):
+            with image.open() as image_bytes:
+                data = image_bytes.read()
+                cid = f"img_{len(image_store)}"
+                image_store.append((cid, data, image.content_type))
+                return {"src": f"cid:{cid}"}
 
-    result = mammoth.convert_to_html(io.BytesIO(file_bytes), convert_image=mammoth.images.inline(convert_image))
-    raw_html = result.value
-    
-    subject = "เปิดตัวสื่อใหม่ล่าสุดจาก Plan B Media"
-    subject_match = re.search(r'Subject:\s*(.*?)(</p>|<br>|\n|$)', raw_html, re.IGNORECASE)
-    if subject_match:
-        subject = subject_match.group(1).strip()
-        subject = re.sub(r'<[^>]*>', '', subject)
-        raw_html = re.sub(r'<p>.*?Subject:\s*.*?</p>', '', raw_html, flags=re.IGNORECASE)
+        result = mammoth.convert_to_html(io.BytesIO(file_bytes), convert_image=mammoth.images.inline(convert_image))
+        raw_html = result.value
+        
+        subject = "เปิดตัวสื่อใหม่ล่าสุดจาก Plan B Media"
+        subject_match = re.search(r'Subject:\s*(.*?)(</p>|<br>|\n|$)', raw_html, re.IGNORECASE)
+        if subject_match:
+            subject = subject_match.group(1).strip()
+            subject = re.sub(r'<[^>]*>', '', subject)
+            raw_html = re.sub(r'<p>.*?Subject:\s*.*?</p>', '', raw_html, flags=re.IGNORECASE)
 
-    return raw_html, subject, image_store
+        return raw_html, subject, image_store, None
+    except Exception as e:
+        return None, None, None, str(e)
 
 def convert_pdf_to_perfect_html(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    file_bytes = urllib.request.urlopen(req).read()
-    
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    image_store = []
-    html_parts = ["<p>เรียน {{Client name}}</p><p>ทาง Plan B Media ขอส่งข้อมูลสื่อ Outthere ล่าสุดให้พิจารณาค่ะ</p>"]
-    
-    # แปลงทุกหน้าของ PDF เป็นรูปภาพความละเอียดสูงเพื่อฝังในอีเมล
-    for page_index in range(len(doc)):
-        page = doc[page_index]
-        pix = page.get_pixmap(dpi=150)
-        img_bytes = pix.tobytes("png")
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        file_bytes = urllib.request.urlopen(req).read()
         
-        cid = f"img_pdf_{page_index}"
-        image_store.append((cid, img_bytes, "image/png"))
-        html_parts.append(f'<div style="margin-bottom: 15px;"><img src="cid:{cid}" style="width: 100%; height: auto; display: block;" /></div>')
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        image_store = []
+        html_parts = ["<p>เรียน {{Client name}}</p><p>ทาง Plan B Media ขอส่งข้อมูลสื่อ Outthere ล่าสุดให้พิจารณาค่ะ</p>"]
         
-    html_parts.append("<p>หากต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถามได้ที่เบอร์ {{Tel}} ค่ะ</p>")
-    
-    subject = "Plan B Media - สื่อใหม่ล่าสุด Outthere Newsletter"
-    return "".join(html_parts), subject, image_store
+        for page_index in range(len(doc)):
+            page = doc[page_index]
+            pix = page.get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+            
+            cid = f"img_pdf_{page_index}"
+            image_store.append((cid, img_bytes, "image/png"))
+            html_parts.append(f'<div style="margin-bottom: 15px;"><img src="cid:{cid}" style="width: 100%; height: auto; display: block;" /></div>')
+            
+        html_parts.append("<p>หากต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถามได้ที่เบอร์ {{Tel}} ค่ะ</p>")
+        subject = "Plan B Media - สื่อใหม่ล่าสุด Outthere Newsletter"
+        return "".join(html_parts), subject, image_store, None
+    except Exception as e:
+        return None, None, None, str(e)
 
 EMAIL_CSS = """
 <style>
@@ -127,31 +131,34 @@ if "01" in step:
             media_info = DRIVE_DOCX_LINKS[selected_media]
             
             if media_info["type"] == "docx":
-                raw_html, subject, image_store = convert_docx_to_perfect_html(media_info["url"])
+                raw_html, subject, image_store, error_msg = convert_docx_to_perfect_html(media_info["url"])
             else:
-                raw_html, subject, image_store = convert_pdf_to_perfect_html(media_info["url"])
+                raw_html, subject, image_store, error_msg = convert_pdf_to_perfect_html(media_info["url"])
             
-            final_targets = []
-            for c in CLIENT_DATABASE:
-                if f"{c['company']} - {c['contact_name']}" in selected_clients:
-                    final_targets.append(c)
-                    
-            if custom_company.strip() and custom_email.strip():
-                final_targets.append({
-                    "company": custom_company.strip(),
-                    "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
-                    "email": custom_email.strip()
-                })
-                
-            if not final_targets:
-                st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+            if error_msg:
+                st.error(f"ไม่สามารถดาวน์โหลดไฟล์ได้: {error_msg}")
             else:
-                st.session_state["targets"] = final_targets
-                st.session_state["raw_html"] = raw_html
-                st.session_state["subject"] = subject
-                st.session_state["image_store"] = image_store
-                st.session_state["sender_phone"] = sender_phone
-                st.success(f"ดึงข้อมูลหัวข้อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
+                final_targets = []
+                for c in CLIENT_DATABASE:
+                    if f"{c['company']} - {c['contact_name']}" in selected_clients:
+                        final_targets.append(c)
+                        
+                if custom_company.strip() and custom_email.strip():
+                    final_targets.append({
+                        "company": custom_company.strip(),
+                        "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
+                        "email": custom_email.strip()
+                    })
+                    
+                if not final_targets:
+                    st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+                else:
+                    st.session_state["targets"] = final_targets
+                    st.session_state["raw_html"] = raw_html
+                    st.session_state["subject"] = subject
+                    st.session_state["image_store"] = image_store
+                    st.session_state["sender_phone"] = sender_phone
+                    st.success(f"ดึงข้อมูลหัวข้อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
 
 # --- STEP 02 ---
 elif "02" in step:
@@ -251,6 +258,6 @@ elif "03" in step:
                     
                 server.quit()
                 st.balloons()
-                st.success("🎉 ส่งอีเมลสำเร็จ! ดึงข้อมูลและแปลงหน้า PDF ออกมาเป็นอีเมลเรียบร้อยแล้วค่ะ")
+                st.success("🎉 ส่งอีเมลสำเร็จ!")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
