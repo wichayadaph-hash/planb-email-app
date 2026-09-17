@@ -18,12 +18,14 @@ CLIENT_DATABASE = [
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# ลิงก์ดึงไฟล์ Word โดยตรงจาก Google Drive Folder ของคุณพลอย
+# 📌 รวมลิงก์ดึงไฟล์ Word Sales Note จาก Google Drive ทุกหัวข้อไว้ที่นี่
 DRIVE_DOCX_LINKS = {
     "Central Park (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    "Outthere (TH)": "https://docs.google.com/document/d/1CkxsDgnVEirqR4p1TWGeTVFE-HbO4wXT/export?format=docx",
     "Central Park (ENG)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    "The 20 (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx"
+    "The 20 (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Outthere - Real-life Experience Ecosystem 2026": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Outthere - Sports Marketing Strategy": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
+    "Outthere - Beauty 3D OOH Campaign": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx"
 }
 
 def convert_docx_to_perfect_html(url):
@@ -102,7 +104,7 @@ if "01" in step:
     st.subheader("STEP 01 : เลือกสื่อ Sales Note และระบุข้อมูลลูกค้ารายเป้าหมาย")
     col1, col2 = st.columns(2)
     with col1:
-        selected_media = st.selectbox("เลือกสื่อ Sales Note:", list(DRIVE_DOCX_LINKS.keys()))
+        selected_media = st.selectbox("📌 เลือกสื่อ/หัวข้อ Sales Note ที่ต้องการเสนอขาย:", list(DRIVE_DOCX_LINKS.keys()))
         sender_phone = st.text_input("เบอร์โทรศัพท์ติดต่อกลับ (แทนค่า {{Tel}}):", value="0645424441")
 
     with col2:
@@ -118,8 +120,8 @@ if "01" in step:
         custom_email = st.text_input("อีเมลลูกค้า:", value="", placeholder="เช่น wichayada.ph@planbmedia.co.th")
 
     st.markdown("---")
-    if st.button("🚀 ดึงไฟล์ Word และประมวลผล", type="primary"):
-        with st.spinner("กำลังอ่านโครงสร้าง Word และจัดรูปแบบภาพ..."):
+    if st.button("🚀 ดึงไฟล์ Word ของหัวข้อที่เลือก และประมวลผล", type="primary"):
+        with st.spinner(f"กำลังดึงข้อมูลสื่อหัวข้อ '{selected_media}'..."):
             raw_html, subject, image_store = convert_docx_to_perfect_html(DRIVE_DOCX_LINKS[selected_media])
             
             final_targets = []
@@ -142,7 +144,7 @@ if "01" in step:
                 st.session_state["subject"] = subject
                 st.session_state["image_store"] = image_store
                 st.session_state["sender_phone"] = sender_phone
-                st.success("ประมวลผลสำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คชื่อและพรีวิวค่ะ")
+                st.success(f"ดึงข้อมูลหัวข้อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
 
 # --- STEP 02 ---
 elif "02" in step:
@@ -251,6 +253,6 @@ elif "03" in step:
                     
                 server.quit()
                 st.balloons()
-                st.success("🎉 ส่งอีเมลสำเร็จ! รวม Outthere และจัดรูปแบบตรงตามไฟล์ Word เรียบร้อยแล้วค่ะ")
+                st.success("🎉 ส่งอีเมลสำเร็จ! แยกสื่อและแสดงผลเป๊ะตามไฟล์ Word เรียบร้อยแล้วค่ะ")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
