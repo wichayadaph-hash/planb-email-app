@@ -1,10 +1,8 @@
 import streamlit as st
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import urllib.parse
 
-# 1. ตั้งค่าหน้าเว็บสไตล์ Plan B
-st.set_page_config(page_title="Plan B - New Media Email Generator", page_icon="🚌", layout="wide")
+# 1. ตั้งค่าหน้าเว็บสไตล์ Plan B New Media
+st.set_page_config(page_title="Plan B - New Media Generator", page_icon="🚌", layout="wide")
 
 st.markdown("""
     <style>
@@ -12,6 +10,22 @@ st.markdown("""
     .stApp { background-color: #0b1118; color: #ffffff; }
     div[data-testid="stSidebar"] { background-color: #060a0f; }
     .stButton>button { background-color: #00c6ff; color: black; font-weight: bold; border-radius: 8px; width: 100%; }
+    .send-btn {
+        display: inline-block;
+        background-color: #00c6ff;
+        color: #000000 !important;
+        font-weight: bold;
+        padding: 14px 24px;
+        text-align: center;
+        border-radius: 8px;
+        text-decoration: none;
+        width: 100%;
+        font-size: 18px;
+        margin-top: 15px;
+    }
+    .send-btn:hover {
+        background-color: #0099cc;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -20,7 +34,7 @@ with st.sidebar:
     st.title("Plan B New Media")
     st.caption("AUTOMATED EMAIL GENERATOR")
     st.markdown("---")
-    step = st.radio("ขั้นตอนการทำงาน", ["01 Brief & Client Detail", "02 Preview & Edit Email", "03 Send Email"])
+    step = st.radio("ขั้นตอนการทำงาน", ["01 Brief & Client Detail", "02 Preview & Edit Email", "03 Send Email (@planbmedia.co.th)"])
 
 st.markdown("### PLAN B MEDIA • NEW MEDIA AUTOMATION")
 
@@ -81,38 +95,24 @@ elif "02" in step:
 
 # --- STEP 03: ส่งอีเมล ---
 elif "03" in step:
-    st.subheader("STEP 03 / 03 : ส่งอีเมลหาลูกค้า")
+    st.subheader("STEP 03 / 03 : ส่งอีเมลด้วยบัญชี @planbmedia.co.th")
     
     if "final_email" in st.session_state:
-        st.write(f"**ผู้รับ:** {st.session_state.get('recipient_email', 'ยังไม่ได้ระบุ')}")
-        st.text_area("ตัวอย่างข้อความที่จะส่ง:", value=st.session_state.get("final_email"), height=200, disabled=True)
+        recipient = st.session_state.get('recipient_email', '')
+        final_text = st.session_state.get("final_email", "")
+        
+        # แยก Subject และ Body
+        lines = final_text.split("\n", 1)
+        subject = lines[0].replace("Subject: ", "") if lines else ""
+        body = lines[1] if len(lines) > 1 else final_text
+
+        st.write(f"**อีเมลผู้รับ:** {recipient if recipient else 'ยังไม่ได้ระบุ'}")
+        st.text_area("เนื้อหาที่จะส่ง:", value=final_text, height=220, disabled=True)
+        
+        # encode สำหรับสร้าง mailto link
+        mailto_url = f"mailto:{recipient}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
         
         st.markdown("---")
-        sender_email = st.text_input("Gmail ผู้ส่ง", placeholder="your_email@gmail.com")
-        app_password = st.text_input("Gmail App Password (16 หลัก)", type="password")
-        
-        if st.button("🚀 ส่งอีเมลหาลูกค้าทันที"):
-            if sender_email and app_password and st.session_state.get("recipient_email"):
-                try:
-                    lines = st.session_state["final_email"].split("\n", 1)
-                    subject = lines[0].replace("Subject: ", "")
-                    body = lines[1] if len(lines) > 1 else ""
-
-                    msg = MIMEMultipart()
-                    msg['From'] = sender_email
-                    msg['To'] = st.session_state["recipient_email"]
-                    msg['Subject'] = subject
-                    msg.attach(MIMEText(body, 'plain'))
-
-                    server = smtplib.SMTP('smtp.gmail.com', 587)
-                    server.starttls()
-                    server.login(sender_email, app_password)
-                    server.send_message(msg)
-                    server.quit()
-
-                    st.balloons()
-                    st.success("ส่งอีเมลสำเร็จเรียบร้อยแล้ว!")
-                except Exception as e:
-                    st.error(f"การส่งล้มเหลว: {e}")
-            else:
-                st.warning("กรุณากรอกข้อมูลให้ครบถ้วน")
+        st.markdown(f'<a href="{mailto_url}" target="_blank" class="send-btn">🚀 กดตรงนี้เพื่อเปิด Outlook / Mail แล้วกดส่งด้วย @planbmedia.co.th ทันที</a>', unsafe_allow_html=True)
+    else:
+        st.warning("กรุณาไปที่ STEP 01 เพื่อสร้างอีเมลก่อนครับ")
