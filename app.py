@@ -7,17 +7,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
-st.set_page_config(page_title="Plan B - Direct Drive Engine", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Plan B - Drive & Flexible Clients Engine", page_icon="🏢", layout="wide")
 
-# ฐานข้อมูลลูกค้าและอีเมลที่เชื่อมไว้ในระบบ (ดึงมาให้อัตโนมัติ ไม่ต้องกรอกเอง)
+# ฐานข้อมูลลูกค้าที่ดึงมาจาก Google Drive
 CLIENT_DATABASE = [
     {"company": "บริษัท คอสเมคอน จำกัด", "email": "cosmecon.th@gmail.com"},
     {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "email": "beauteousderma@gmail.com"},
-    {"company": "บริษัท บีดีเอ็มเอส เวลเนส คลินิก จำกัด", "email": "kunta.th@bdmswellness.com"},
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# ลิงก์ตรงไฟล์ Word Sales Note ใน Google Drive ของ Plan B
 DRIVE_DOCX_LINKS = {
     "Central Park (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
     "Central Park (ENG)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
@@ -41,48 +39,79 @@ def parse_docx_from_url(url):
 
 with st.sidebar:
     st.title("Plan B Media")
-    st.caption("DIRECT GOOGLE DRIVE ENGINE")
-    step = st.radio("ขั้นตอน", ["01 เลือกสื่อและกลุ่มลูกค้า", "02 พรีวิวเนื้อหาจาก Drive", "03 ยืนยันการส่ง Email"])
+    st.caption("GOOGLE DRIVE AUTOMATION")
+    step = st.radio("ขั้นตอน", ["01 เลือกสื่อและจัดการลูกค้ารายเป้าหมาย", "02 พรีวิวข้อความและรูปภาพ", "03 ยืนยันการส่ง Email"])
 
-st.markdown("## 🏢 PLAN B MEDIA • GOOGLE DRIVE AUTOMATION")
+st.markdown("## 🏢 PLAN B MEDIA • FLEXIBLE CLIENT AUTOMATION")
 
 # --- STEP 01 ---
 if "01" in step:
-    st.subheader("STEP 01 : เลือกสื่อ Sales Note และลูกค้ารายเป้าหมาย (ดึงตรงจาก Drive)")
+    st.subheader("STEP 01 : เลือกสื่อ Sales Note และจัดการรายชื่อลูกค้า")
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        st.write("📂 **เลือกไฟล์ Sales Note จาก Google Drive:**")
+        st.write("📂 **1. เลือกไฟล์ Sales Note จาก Google Drive:**")
         selected_media = st.selectbox("สื่อที่ต้องการเสนอขาย:", list(DRIVE_DOCX_LINKS.keys()))
         
-    with col2:
-        st.write("👥 **เลือกกลุ่มลูกค้าจากฐานข้อมูล (ไม่ต้องกรอกเอง):**")
-        client_options = [f"{c['company']} ({c['email']})" for c in CLIENT_DATABASE]
-        selected_clients = st.multiselect("รายชื่อลูกค้าเป้าหมาย:", options=client_options, default=client_options)
+        st.markdown("---")
+        st.write("➕ **2. เพิ่มลูกค้าใหม่ (ถ้ามี):**")
+        new_company = st.text_input("ชื่อบริษัทลูกค้าใหม่:", placeholder="เช่น บริษัท เอสซีบี เอกซ์ จำกัด (มหาชน)")
+        new_email = st.text_input("อีเมลลูกค้าใหม่:", placeholder="เช่น marketing@scbx.com")
 
-    if st.button("🚀 ดึงข้อความและรูปภาพตรงจาก Google Drive"):
-        with st.spinner("กำลังเชื่อมต่อ Google Drive และดึงไฟล์ Word..."):
+    with col2:
+        st.write("👥 **3. เลือกลูกค้าจากฐานข้อมูลใน Drive:**")
+        
+        # ปุ่มทางเลือกสำหรับเลือกทั้งหมด
+        all_client_options = [f"{c['company']} ({c['email']})" for c in CLIENT_DATABASE]
+        
+        select_all = st.checkbox("✅ เลือกทั้งหมดจากฐานข้อมูล Drive", value=True)
+        
+        default_selected = all_client_options if select_all else []
+        
+        selected_clients = st.multiselect(
+            "คลิกเลือก/ลบ รายชื่อลูกค้าได้ตามต้องการ:",
+            options=all_client_options,
+            default=default_selected
+        )
+
+    st.markdown("---")
+    if st.button("🚀 ดึงข้อมูลจาก Drive และรวมรายชื่อลูกค้า", type="primary"):
+        with st.spinner("กำลังดึงไฟล์ Word จาก Google Drive..."):
             docx_url = DRIVE_DOCX_LINKS[selected_media]
             paragraphs, images = parse_docx_from_url(docx_url)
             
-            targets = [c for c in CLIENT_DATABASE if f"{c['company']} ({c['email']})" in selected_clients]
+            # รวมลูกค้าจาก Drive ที่เลือก
+            final_targets = [c for c in CLIENT_DATABASE if f"{c['company']} ({c['email']})" in selected_clients]
             
-            st.session_state["targets"] = targets
-            st.session_state["docx_paragraphs"] = paragraphs
-            st.session_state["docx_images"] = images
-            st.session_state["media_title"] = selected_media
+            # หากมีการกรอกลูกค้าใหม่ ให้เพิ่มเข้าไปด้วย
+            if new_company.strip() and new_email.strip():
+                final_targets.append({"company": new_company.strip(), "email": new_email.strip()})
             
-            st.success(f"ดึงไฟล์ Word และรูปภาพจาก Google Drive สำเร็จ! เลือกไว้ {len(targets)} รายบริษัท ➔ ไปที่ STEP 02")
+            if not final_targets:
+                st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการ หรือกรอกข้อมูลลูกค้าใหม่ครับ")
+            else:
+                st.session_state["targets"] = final_targets
+                st.session_state["docx_paragraphs"] = paragraphs
+                st.session_state["docx_images"] = images
+                st.session_state["media_title"] = selected_media
+                
+                st.success(f"เตรียมข้อมูลสำเร็จ! พร้อมส่งหาลูกค้าทั้งหมด {len(final_targets)} รายบริษัท ➔ ไปที่ STEP 02")
 
 # --- STEP 02 ---
 elif "02" in step:
-    st.subheader("STEP 02 : พรีวิวข้อความและรูปภาพจริงจาก Google Drive")
+    st.subheader("STEP 02 : ตรวจสอบพรีวิวและรายชื่อที่จะจัดส่ง")
     if "docx_paragraphs" in st.session_state:
         targets = st.session_state.get("targets", [])
         paragraphs = st.session_state.get("docx_paragraphs", [])
         images = st.session_state.get("docx_images", [])
         
-        st.info(f"ดึงข้อมูลตรงจากไฟล์ Word ใน Drive เรียบร้อยแล้ว (จะระบุชื่อบริษัทลูกค้าให้อัตโนมัติ)")
+        st.write("📋 **สรุปรายชื่อบริษัทที่จะได้รับอีเมลชุดนี้:**")
+        for idx, t in enumerate(targets, 1):
+            st.write(f"{idx}. **{t['company']}** ({t['email']})")
+            
+        st.markdown("---")
+        st.caption("ตัวอย่างข้อความและรูปภาพที่จะปรากฏในอีเมล (ปรับชื่อบริษัทให้อัตโนมัติ):")
         
         first_client = targets[0]
         body_content = f"<p style='margin-bottom: 15px;'><b>เรียน คุณ ทีมการตลาด {first_client['company']}</b></p>"
@@ -110,11 +139,11 @@ elif "02" in step:
             {img_table}
         </div>
         """
-        st.components.v1.html(preview_html, height=550, scrolling=True)
+        st.components.v1.html(preview_html, height=500, scrolling=True)
 
 # --- STEP 03 ---
 elif "03" in step:
-    st.subheader("STEP 03 : ยืนยันการจัดส่ง Batch Email")
+    st.subheader("STEP 03 : ยืนยันการส่ง Batch Email")
     if "docx_paragraphs" in st.session_state:
         targets = st.session_state.get("targets", [])
         paragraphs = st.session_state.get("docx_paragraphs", [])
@@ -181,6 +210,6 @@ elif "03" in step:
                     
                 server.quit()
                 st.balloons()
-                st.success("🎉 ส่งอีเมลสำเร็จ! ดึงข้อมูลจาก Google Drive และ Database เรียบร้อย 100%")
+                st.success("🎉 ส่งอีเมลสำเร็จเรียบร้อยแล้วทุกบริษัท!")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
