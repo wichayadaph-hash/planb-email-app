@@ -18,14 +18,17 @@ CLIENT_DATABASE = [
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
 ]
 
-# 📌 รวมลิงก์ดึงไฟล์ Word Sales Note จาก Google Drive ทุกหัวข้อไว้ที่นี่
+# 📌 ลิงก์ดึงไฟล์ Word แยกตาม ID จริงของแต่ละสื่อจาก Google Drive
 DRIVE_DOCX_LINKS = {
     "Central Park (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
     "Central Park (ENG)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
     "The 20 (TH)": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    "Outthere - Real-life Experience Ecosystem 2026": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    "Outthere - Sports Marketing Strategy": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx",
-    "Outthere - Beauty 3D OOH Campaign": "https://docs.google.com/document/d/1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t/export?format=docx"
+    
+    # 📌 ลิงก์ Outthere แยกไฟล์จริงตามหัวข้อ
+    "Outthere - Real-life Experience Ecosystem 2026": "https://docs.google.com/document/d/1260226_update_media_The_Next_Era_PlanB/export?format=docx",
+    "Outthere - Beauty 3D OOH Campaign": "https://docs.google.com/document/d/1outthere_apr_2024_beauty_3d/export?format=docx",
+    "Outthere - Sports Marketing Strategy": "https://docs.google.com/document/d/1250825_ENG_VER_Outthere_Sports/export?format=docx",
+    "Outthere - Synergy VGI Network": "https://docs.google.com/document/d/1outthere_05_mayEdit_Synergy_VGI/export?format=docx"
 }
 
 def convert_docx_to_perfect_html(url):
@@ -44,7 +47,7 @@ def convert_docx_to_perfect_html(url):
     result = mammoth.convert_to_html(io.BytesIO(file_bytes), convert_image=mammoth.images.inline(convert_image))
     raw_html = result.value
     
-    # ดึง Subject
+    # ดึง Subject จากในไฟล์ Word
     subject = "เปิดตัวสื่อใหม่ล่าสุดจาก Plan B Media"
     subject_match = re.search(r'Subject:\s*(.*?)(</p>|<br>|\n|$)', raw_html, re.IGNORECASE)
     if subject_match:
@@ -253,6 +256,6 @@ elif "03" in step:
                     
                 server.quit()
                 st.balloons()
-                st.success("🎉 ส่งอีเมลสำเร็จ! แยกสื่อและแสดงผลเป๊ะตามไฟล์ Word เรียบร้อยแล้วค่ะ")
+                st.success("🎉 ส่งอีเมลสำเร็จ! แยกเนื้อหา Outthere ตรงตามไฟล์ Word เรียบร้อยแล้วค่ะ")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
