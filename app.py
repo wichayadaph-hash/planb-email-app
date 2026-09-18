@@ -5,6 +5,7 @@ import io
 import re
 import mammoth
 import base64
+import pandas as pd
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
@@ -14,14 +15,8 @@ st.set_page_config(page_title="Plan B Media Email Automation", page_icon="🏢",
 # 🎨 Custom CSS - Theme CI: ฟ้า-ขาว-น้ำเงิน (Plan B Media)
 st.markdown("""
 <style>
-    /* Primary Color Theme */
-    .stApp {
-        background-color: #F8FAFC;
-    }
-    h1, h2, h3 {
-        color: #0A2540 !important;
-        font-family: 'Aptos', 'Calibri', sans-serif !important;
-    }
+    .stApp { background-color: #F8FAFC; }
+    h1, h2, h3 { color: #0A2540 !important; font-family: 'Aptos', 'Calibri', sans-serif !important; }
     .stButton>button {
         background-color: #0A2540 !important;
         color: #ffffff !important;
@@ -29,47 +24,36 @@ st.markdown("""
         border: none !important;
         font-weight: 600 !important;
     }
-    .stButton>button:hover {
-        background-color: #00A3FF !important;
-        color: #ffffff !important;
-    }
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #0A2540 !important;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #FFFFFF !important;
-    }
-    /* Info Box */
-    .stAlert {
-        background-color: #EBF8FF !important;
-        color: #0A2540 !important;
-        border-left: 4px solid #00A3FF !important;
-    }
+    .stButton>button:hover { background-color: #00A3FF !important; color: #ffffff !important; }
+    section[data-testid="stSidebar"] { background-color: #0A2540 !important; }
+    section[data-testid="stSidebar"] * { color: #FFFFFF !important; }
+    .stAlert { background-color: #EBF8FF !important; color: #0A2540 !important; border-left: 4px solid #00A3FF !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# 📌 คลังสื่อ Sales Note ในโฟลเดอร์ New Media (เรียงตามรายการจริง ไม่มีวันหาย)
-# เมื่อมีสื่อใหม่ เพิ่มชื่อและ File ID หรือ ลิงก์ Word ได้ตรงนี้เลยค่ะ
-DRIVE_DOCX_LINKS = {
-    "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-    "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-    "The 20 (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t"  # ใส่ File ID จริงของ The 20
-}
+# 📌 โฟลเดอร์คลังสื่อ New Media หลักของคุณพลอย (คลังกลางบริษัท)
+MAIN_NEW_MEDIA_FOLDER_ID = "15nRgzuYsWDPsCfu2IrS4QeWPS89fxckQ"
 
-# ฐานข้อมูลลูกค้า
-CLIENT_DATABASE = [
-    {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
-    {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
-    {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
-]
-
-def convert_docx_to_perfect_html(file_id_or_url):
-    if "http" in file_id_or_url:
-        download_url = file_id_or_url
-    else:
-        download_url = f"https://docs.google.com/document/d/{file_id_or_url}/export?format=docx"
+def fetch_docx_files_from_folder(folder_id):
+    """สแกนหาไฟล์ .docx ทั้งหมดในคลังสื่อ New Media"""
+    files_map = {}
+    try:
+        url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        html = urllib.request.urlopen(req).read().decode('utf-8')
         
+        matches = re.findall(r'id=([a-zA-Z0-9_-]{25,}).*?class="[^"]*entry-name[^"]*">(.*?)</div>', html)
+        for fid, fname in matches:
+            clean_name = re.sub(r'<[^>]*>', '', fname).strip()
+            if clean_name and (clean_name.endswith('.docx') or clean_name.endswith('.doc')):
+                clean_title = clean_name.replace('.docx', '').replace('.doc', '')
+                files_map[clean_title] = fid
+    except Exception:
+        pass
+    return files_map
+
+def convert_docx_to_perfect_html(file_id):
+    download_url = f"https://docs.google.com/document/d/{file_id}/export?format=docx"
     req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
     file_bytes = urllib.request.urlopen(req).read()
     
@@ -95,12 +79,7 @@ def convert_docx_to_perfect_html(file_id_or_url):
 
 EMAIL_CSS = """
 <style>
-    body, div {
-        font-family: 'Aptos', 'Calibri', 'Tahoma', 'Cordia New', sans-serif !important;
-        font-size: 16px !important;
-        color: #222222 !important;
-        line-height: 1.6 !important;
-    }
+    body, div { font-family: 'Aptos', 'Calibri', 'Tahoma', 'Cordia New', sans-serif !important; font-size: 16px !important; color: #222222 !important; line-height: 1.6 !important; }
     p { margin-top: 0 !important; margin-bottom: 12px !important; }
     table { width: 100% !important; border-collapse: collapse !important; margin: 15px 0 !important; }
     td { vertical-align: top !important; padding: 4px !important; }
@@ -110,63 +89,129 @@ EMAIL_CSS = """
 </style>
 """
 
+# --- SIDEBAR CONFIGURATION ---
 with st.sidebar:
     st.title("PLAN B MEDIA")
     st.caption("EMAIL AUTOMATION SYSTEM")
     st.markdown("---")
+    
+    st.subheader("👥 นำเข้าข้อมูลลูกค้าส่วนตัว")
+    input_method = st.radio("เลือกวิธีนำเข้ารายชื่อลูกค้า:", ["แปะลิงก์ Google Sheets", "อัปโหลดไฟล์ Excel/CSV"])
+    
+    user_clients = []
+    
+    if input_method == "แปะลิงก์ Google Sheets":
+        sheet_url = st.text_input(
+            "ลิงก์ Google Sheets ของคุณ:", 
+            placeholder="https://docs.google.com/spreadsheets/d/...",
+            help="วางลิงก์ Google Sheets (ต้องตั้งค่าแชร์เป็น Anyone with the link)"
+        )
+        if sheet_url:
+            try:
+                # แปลง URL เป็น Export CSV URL
+                sheet_id = re.search(r'/d/([a-zA-Z0-9_-]+)', sheet_url).group(1)
+                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+                df = pd.read_csv(csv_url)
+                for _, row in df.iterrows():
+                    user_clients.append({
+                        "company": str(row.iloc[0]),
+                        "contact_name": str(row.iloc[1]) if len(row) > 1 else str(row.iloc[0]),
+                        "email": str(row.iloc[2]) if len(row) > 2 else ""
+                    })
+                st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
+            except Exception:
+                st.error("ไม่สามารถอ่านข้อมูลได้ กรุณาเช็คการตั้งค่าแชร์ลิงก์ Google Sheets ค่ะ")
+                
+    elif input_method == "อัปโหลดไฟล์ Excel/CSV":
+        uploaded_file = st.file_uploader("เลือกไฟล์รายชื่อลูกค้า:", type=['xlsx', 'csv'])
+        if uploaded_file:
+            try:
+                df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+                for _, row in df.iterrows():
+                    user_clients.append({
+                        "company": str(row.iloc[0]),
+                        "contact_name": str(row.iloc[1]) if len(row) > 1 else str(row.iloc[0]),
+                        "email": str(row.iloc[2]) if len(row) > 2 else ""
+                    })
+                st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
+            except Exception:
+                st.error("ไฟล์ไม่ถูกต้อง กรุณาตรวจสอบโครงสร้างคอลัมน์ค่ะ")
+
+    st.markdown("---")
     step = st.radio("ขั้นตอนการทำงาน", ["01 เลือกสื่อและจัดการกลุ่มเป้าหมาย", "02 ตรวจสอบพรีวิวและแก้ไขข้อมูล", "03 ยืนยันการส่ง Email"])
 
 st.markdown("# 🏢 PLAN B MEDIA • AUTOMATION ENGINE")
+
+# ดึงรายการไฟล์สื่อจากคลังกลางของคุณพลอยอัตโนมัติ
+available_media = fetch_docx_files_from_folder(MAIN_NEW_MEDIA_FOLDER_ID)
 
 # --- STEP 01 ---
 if "01" in step:
     st.subheader("STEP 01 : เลือกสื่อ Sales Note และระบุข้อมูลลูกค้ารายเป้าหมาย")
     col1, col2 = st.columns(2)
     with col1:
-        selected_media = st.selectbox("📌 เลือกสื่อ Sales Note (โฟลเดอร์ New Media):", list(DRIVE_DOCX_LINKS.keys()))
+        st.write("📁 **สื่อจากคลังกลาง New Media:**")
+        if available_media:
+            selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note:", list(available_media.keys()))
+        else:
+            st.warning("⚠️ ไม่พบไฟล์สื่อในโฟลเดอร์ หรือโฟลเดอร์ยังไม่ได้เปิดสิทธิ์ 'Anyone with the link'")
+            selected_media_name = None
+            
         sender_phone = st.text_input("เบอร์โทรศัพท์ติดต่อกลับ (แทนค่า {{Tel}}):", value="0645424441")
 
     with col2:
-        st.write("👥 **เลือกลูกค้าจากฐานข้อมูล:**")
-        all_client_options = [f"{c['company']} - {c['contact_name']}" for c in CLIENT_DATABASE]
+        st.write("👥 **เลือกลูกค้าเป้าหมาย:**")
+        
+        # ใช้รายชื่อลูกค้าของพนักงานที่นำเข้า หากไม่มีจะใช้ Default ให้ทดสอบ
+        active_client_db = user_clients if user_clients else [
+            {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
+            {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
+            {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
+        ]
+        
+        all_client_options = [f"{c['company']} - {c['contact_name']}" for c in active_client_db]
         select_all = st.checkbox("✅ เลือกทั้งหมด", value=True)
         default_selected = all_client_options if select_all else []
         selected_clients = st.multiselect("รายการที่เลือก:", options=all_client_options, default=default_selected)
         
-        st.caption("➕ เพิ่มลูกค้ารายใหม่ (แยกชื่อบริษัท และ ชื่อผู้รับ):")
+        st.caption("➕ เพิ่มลูกค้ารายใหม่ด่วน (เพิ่มเฉพาะรอบนี้):")
         custom_company = st.text_input("ชื่อบริษัท:", value="", placeholder="เช่น บริษัท แพลน บี มีเดีย จำกัด (มหาชน)")
         custom_contact = st.text_input("ชื่อผู้รับ/ลูกค้า (Contact Name):", value="", placeholder="เช่น คุณพลอย")
         custom_email = st.text_input("อีเมลลูกค้า:", value="", placeholder="เช่น wichayada.ph@planbmedia.co.th")
 
     st.markdown("---")
     if st.button("🚀 ดึงไฟล์ Word ของสื่อที่เลือก และประมวลผล", type="primary"):
-        with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media}' จาก Google Drive..."):
-            try:
-                raw_html, subject, image_store = convert_docx_to_perfect_html(DRIVE_DOCX_LINKS[selected_media])
-                
-                final_targets = []
-                for c in CLIENT_DATABASE:
-                    if f"{c['company']} - {c['contact_name']}" in selected_clients:
-                        final_targets.append(c)
-                        
-                if custom_company.strip() and custom_email.strip():
-                    final_targets.append({
-                        "company": custom_company.strip(),
-                        "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
-                        "email": custom_email.strip()
-                    })
+        if not selected_media_name:
+            st.error("กรุณาตรวจสอบโฟลเดอร์สื่อ New Media ก่อนค่ะ")
+        else:
+            file_id = available_media[selected_media_name]
+            with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media_name}' จากคลังกลาง..."):
+                try:
+                    raw_html, subject, image_store = convert_docx_to_perfect_html(file_id)
                     
-                if not final_targets:
-                    st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
-                else:
-                    st.session_state["targets"] = final_targets
-                    st.session_state["raw_html"] = raw_html
-                    st.session_state["subject"] = subject
-                    st.session_state["image_store"] = image_store
-                    st.session_state["sender_phone"] = sender_phone
-                    st.success(f"ดึงข้อมูลสื่อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์: {str(e)}")
+                    final_targets = []
+                    for c in active_client_db:
+                        if f"{c['company']} - {c['contact_name']}" in selected_clients:
+                            final_targets.append(c)
+                            
+                    if custom_company.strip() and custom_email.strip():
+                        final_targets.append({
+                            "company": custom_company.strip(),
+                            "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
+                            "email": custom_email.strip()
+                        })
+                        
+                    if not final_targets:
+                        st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+                    else:
+                        st.session_state["targets"] = final_targets
+                        st.session_state["raw_html"] = raw_html
+                        st.session_state["subject"] = subject
+                        st.session_state["image_store"] = image_store
+                        st.session_state["sender_phone"] = sender_phone
+                        st.success(f"ดึงข้อมูลสื่อ '{selected_media_name}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์: {str(e)}")
 
 # --- STEP 02 ---
 elif "02" in step:
@@ -229,52 +274,55 @@ elif "03" in step:
         
         col_a, col_b = st.columns(2)
         with col_a:
-            sender = st.text_input("อีเมลผู้ส่ง:", value="wichayada.ph@planbmedia.co.th")
+            sender = st.text_input("อีเมลผู้ส่ง (บัญชี @planbmedia.co.th):", placeholder="yourname@planbmedia.co.th")
         with col_b:
-            pwd = st.text_input("Google App Password:", value="szqfthyetnrmuulr", type="password")
+            pwd = st.text_input("Google App Password ของคุณ:", type="password")
             
         if st.button("🚀 ส่ง Email หาพร้อมกันทุกบริษัททันที", type="primary"):
-            try:
-                server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-                server.login(sender, pwd)
-                
-                for client in targets:
-                    msg = MIMEMultipart('related')
-                    msg['From'] = sender
-                    msg['To'] = client['email']
-                    msg['Subject'] = subject
+            if not sender or not pwd:
+                st.error("กรุณากรอกอีเมลผู้ส่งและ Google App Password ให้ครบถ้วนค่ะ")
+            else:
+                try:
+                    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+                    server.login(sender, pwd)
                     
-                    msg_alt = MIMEMultipart('alternative')
-                    msg.attach(msg_alt)
-                    
-                    client_display = client.get("contact_name", client["company"])
-                    client_html_body = raw_html.replace("{{Client name}}", client_display).replace("{{Tel}}", phone)
-                    
-                    full_email_html = f"""
-                    <html>
-                    <head>
-                        {EMAIL_CSS}
-                    </head>
-                    <body style="background-color: #ffffff; padding: 10px;">
-                        <div style="max-width: 720px; margin: 0 auto;">
-                            {client_html_body}
-                        </div>
-                    </body>
-                    </html>
-                    """
-                    
-                    msg_alt.attach(MIMEText(full_email_html, 'html', 'utf-8'))
-                    
-                    for cid, img_data, content_type in image_store:
-                        maintype, subtype = content_type.split('/')
-                        img_mime = MIMEImage(img_data, _subtype=subtype)
-                        img_mime.add_header('Content-ID', f'<{cid}>')
-                        msg.attach(img_mime)
+                    for client in targets:
+                        msg = MIMEMultipart('related')
+                        msg['From'] = sender
+                        msg['To'] = client['email']
+                        msg['Subject'] = subject
                         
-                    server.sendmail(sender, client['email'], msg.as_string())
-                    
-                server.quit()
-                st.balloons()
-                st.success("🎉 ส่งอีเมลสำเร็จ! จัดส่งหาลูกค้าทุกรายเรียบร้อยแล้วค่ะ")
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
+                        msg_alt = MIMEMultipart('alternative')
+                        msg.attach(msg_alt)
+                        
+                        client_display = client.get("contact_name", client["company"])
+                        client_html_body = raw_html.replace("{{Client name}}", client_display).replace("{{Tel}}", phone)
+                        
+                        full_email_html = f"""
+                        <html>
+                        <head>
+                            {EMAIL_CSS}
+                        </head>
+                        <body style="background-color: #ffffff; padding: 10px;">
+                            <div style="max-width: 720px; margin: 0 auto;">
+                                {client_html_body}
+                            </div>
+                        </body>
+                        </html>
+                        """
+                        
+                        msg_alt.attach(MIMEText(full_email_html, 'html', 'utf-8'))
+                        
+                        for cid, img_data, content_type in image_store:
+                            maintype, subtype = content_type.split('/')
+                            img_mime = MIMEImage(img_data, _subtype=subtype)
+                            img_mime.add_header('Content-ID', f'<{cid}>')
+                            msg.attach(img_mime)
+                            
+                        server.sendmail(sender, client['email'], msg.as_string())
+                        
+                    server.quit()
+                    st.balloons()
+                    st.success("🎉 ส่งอีเมลสำเร็จ! จัดส่งหาลูกค้าทุกรายเรียบร้อยแล้วค่ะ")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการส่ง: {str(e)}")
