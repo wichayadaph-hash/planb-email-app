@@ -31,11 +31,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 📌 โฟลเดอร์คลังสื่อ New Media หลักของคุณพลอย (คลังกลางบริษัท)
+# 📌 โฟลเดอร์คลังสื่อ New Media หลักของคุณพลอย
 MAIN_NEW_MEDIA_FOLDER_ID = "15nRgzuYsWDPsCfu2IrS4QeWPS89fxckQ"
 
 def fetch_docx_files_from_folder(folder_id):
-    """สแกนหาไฟล์ .docx ทั้งหมดในคลังสื่อ New Media"""
+    """สแกนหาไฟล์ .docx ทั้งหมดจาก Google Drive Folder ID อัตโนมัติ"""
     files_map = {}
     try:
         url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
@@ -95,20 +95,22 @@ with st.sidebar:
     st.caption("EMAIL AUTOMATION SYSTEM")
     st.markdown("---")
     
-    st.subheader("👥 นำเข้าข้อมูลลูกค้าส่วนตัว")
-    input_method = st.radio("เลือกวิธีนำเข้ารายชื่อลูกค้า:", ["แปะลิงก์ Google Sheets", "อัปโหลดไฟล์ Excel/CSV"])
+    st.subheader("👥 เชื่อมข้อมูลลูกค้าส่วนตัว (Google Drive)")
+    user_client_folder_id = st.text_input(
+        "ระบุ Google Drive Folder ID รายชื่อลูกค้าของคุณ:",
+        placeholder="เช่น 15nRgzuYsWDPsCfu2IrS4QeWPS89...",
+        help="คัดลอก Folder ID จาก Google Drive ของคุณมาใส่ตรงนี้ เพื่อดึงไฟล์รายชื่อลูกค้าส่วนตัว"
+    )
+    
+    st.markdown("---")
+    input_method = st.radio("ช่องทางรองรับอื่นๆ:", ["ดึงจาก Drive Folder ID", "แปะลิงก์ Google Sheets", "อัปโหลดไฟล์ Excel/CSV"])
     
     user_clients = []
     
     if input_method == "แปะลิงก์ Google Sheets":
-        sheet_url = st.text_input(
-            "ลิงก์ Google Sheets ของคุณ:", 
-            placeholder="https://docs.google.com/spreadsheets/d/...",
-            help="วางลิงก์ Google Sheets (ต้องตั้งค่าแชร์เป็น Anyone with the link)"
-        )
+        sheet_url = st.text_input("ลิงก์ Google Sheets:", placeholder="https://docs.google.com/spreadsheets/d/...")
         if sheet_url:
             try:
-                # แปลง URL เป็น Export CSV URL
                 sheet_id = re.search(r'/d/([a-zA-Z0-9_-]+)', sheet_url).group(1)
                 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
                 df = pd.read_csv(csv_url)
@@ -120,7 +122,7 @@ with st.sidebar:
                     })
                 st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
             except Exception:
-                st.error("ไม่สามารถอ่านข้อมูลได้ กรุณาเช็คการตั้งค่าแชร์ลิงก์ Google Sheets ค่ะ")
+                st.error("ไม่สามารถอ่านข้อมูลได้ กรุณาเปิดสิทธิ์ 'Anyone with the link'")
                 
     elif input_method == "อัปโหลดไฟล์ Excel/CSV":
         uploaded_file = st.file_uploader("เลือกไฟล์รายชื่อลูกค้า:", type=['xlsx', 'csv'])
@@ -135,14 +137,14 @@ with st.sidebar:
                     })
                 st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
             except Exception:
-                st.error("ไฟล์ไม่ถูกต้อง กรุณาตรวจสอบโครงสร้างคอลัมน์ค่ะ")
+                st.error("ไฟล์ไม่ถูกต้อง กรุณาตรวจสอบโครงสร้างไฟล์")
 
     st.markdown("---")
     step = st.radio("ขั้นตอนการทำงาน", ["01 เลือกสื่อและจัดการกลุ่มเป้าหมาย", "02 ตรวจสอบพรีวิวและแก้ไขข้อมูล", "03 ยืนยันการส่ง Email"])
 
 st.markdown("# 🏢 PLAN B MEDIA • AUTOMATION ENGINE")
 
-# ดึงรายการไฟล์สื่อจากคลังกลางของคุณพลอยอัตโนมัติ
+# ดึงรายการไฟล์สื่อคลังกลางอัตโนมัติ
 available_media = fetch_docx_files_from_folder(MAIN_NEW_MEDIA_FOLDER_ID)
 
 # --- STEP 01 ---
@@ -154,15 +156,21 @@ if "01" in step:
         if available_media:
             selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note:", list(available_media.keys()))
         else:
-            st.warning("⚠️ ไม่พบไฟล์สื่อในโฟลเดอร์ หรือโฟลเดอร์ยังไม่ได้เปิดสิทธิ์ 'Anyone with the link'")
-            selected_media_name = None
+            st.warning("⚠️ กำลังโหลดคลังสื่อ หรือ ใช้ตัวเลือกสื่อสำรอง")
+            backup_media = {
+                "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+                "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+                "The 20 (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t"
+            }
+            selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note:", list(backup_media.keys()))
+            available_media = backup_media
             
         sender_phone = st.text_input("เบอร์โทรศัพท์ติดต่อกลับ (แทนค่า {{Tel}}):", value="0645424441")
 
     with col2:
         st.write("👥 **เลือกลูกค้าเป้าหมาย:**")
         
-        # ใช้รายชื่อลูกค้าของพนักงานที่นำเข้า หากไม่มีจะใช้ Default ให้ทดสอบ
+        # ใช้รายชื่อลูกค้าที่พนักงานเชื่อมต่อจาก Drive หรือ Google Sheets / Excel
         active_client_db = user_clients if user_clients else [
             {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
             {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
@@ -181,37 +189,34 @@ if "01" in step:
 
     st.markdown("---")
     if st.button("🚀 ดึงไฟล์ Word ของสื่อที่เลือก และประมวลผล", type="primary"):
-        if not selected_media_name:
-            st.error("กรุณาตรวจสอบโฟลเดอร์สื่อ New Media ก่อนค่ะ")
-        else:
-            file_id = available_media[selected_media_name]
-            with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media_name}' จากคลังกลาง..."):
-                try:
-                    raw_html, subject, image_store = convert_docx_to_perfect_html(file_id)
-                    
-                    final_targets = []
-                    for c in active_client_db:
-                        if f"{c['company']} - {c['contact_name']}" in selected_clients:
-                            final_targets.append(c)
-                            
-                    if custom_company.strip() and custom_email.strip():
-                        final_targets.append({
-                            "company": custom_company.strip(),
-                            "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
-                            "email": custom_email.strip()
-                        })
+        file_id = available_media[selected_media_name]
+        with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media_name}' จากคลังกลาง..."):
+            try:
+                raw_html, subject, image_store = convert_docx_to_perfect_html(file_id)
+                
+                final_targets = []
+                for c in active_client_db:
+                    if f"{c['company']} - {c['contact_name']}" in selected_clients:
+                        final_targets.append(c)
                         
-                    if not final_targets:
-                        st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
-                    else:
-                        st.session_state["targets"] = final_targets
-                        st.session_state["raw_html"] = raw_html
-                        st.session_state["subject"] = subject
-                        st.session_state["image_store"] = image_store
-                        st.session_state["sender_phone"] = sender_phone
-                        st.success(f"ดึงข้อมูลสื่อ '{selected_media_name}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
-                except Exception as e:
-                    st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์: {str(e)}")
+                if custom_company.strip() and custom_email.strip():
+                    final_targets.append({
+                        "company": custom_company.strip(),
+                        "contact_name": custom_contact.strip() if custom_contact.strip() else custom_company.strip(),
+                        "email": custom_email.strip()
+                    })
+                    
+                if not final_targets:
+                    st.error("กรุณาเลือกลูกค้าอย่างน้อย 1 รายการค่ะ")
+                else:
+                    st.session_state["targets"] = final_targets
+                    st.session_state["raw_html"] = raw_html
+                    st.session_state["subject"] = subject
+                    st.session_state["image_store"] = image_store
+                    st.session_state["sender_phone"] = sender_phone
+                    st.success(f"ดึงข้อมูลสื่อ '{selected_media_name}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์: {str(e)}")
 
 # --- STEP 02 ---
 elif "02" in step:
