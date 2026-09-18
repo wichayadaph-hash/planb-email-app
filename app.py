@@ -5,53 +5,71 @@ import io
 import re
 import mammoth
 import base64
-import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
 st.set_page_config(page_title="Plan B Media Email Automation", page_icon="🏢", layout="wide")
 
-# 📌 Google Drive Folder ID ของ "New Media"
-FOLDER_ID = "15nRgzuYsWDPsCfu2IrS4QeWPS89fxckQ"
+# 🎨 Custom CSS - Theme CI: ฟ้า-ขาว-น้ำเงิน (Plan B Media)
+st.markdown("""
+<style>
+    /* Primary Color Theme */
+    .stApp {
+        background-color: #F8FAFC;
+    }
+    h1, h2, h3 {
+        color: #0A2540 !important;
+        font-family: 'Aptos', 'Calibri', sans-serif !important;
+    }
+    .stButton>button {
+        background-color: #0A2540 !important;
+        color: #ffffff !important;
+        border-radius: 6px !important;
+        border: none !important;
+        font-weight: 600 !important;
+    }
+    .stButton>button:hover {
+        background-color: #00A3FF !important;
+        color: #ffffff !important;
+    }
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #0A2540 !important;
+    }
+    section[data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    /* Info Box */
+    .stAlert {
+        background-color: #EBF8FF !important;
+        color: #0A2540 !important;
+        border-left: 4px solid #00A3FF !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-@st.cache_data(ttl=60) # รีเฟรชข้อมูลอัตโนมัติทุกๆ 1 นาที
-def get_drive_files_auto(folder_id):
-    """สแกนค้นหาไฟล์ .docx ทั้งหมดใน Google Drive Folder แบบ Real-time"""
-    files_map = {}
-    try:
-        # ดึงรายชื่อไฟล์ผ่าน Google Drive Folder Public API Structure
-        url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        html = urllib.request.urlopen(req).read().decode('utf-8')
-        
-        # ค้นหา File ID และชื่อไฟล์ Word .docx ในโฟลเดอร์
-        matches = re.findall(r'id=([a-zA-Z0-9_-]{25,}).*?class="[^"]*entry-name[^"]*">(.*?)</div>', html)
-        for fid, fname in matches:
-            clean_name = re.sub(r'<[^>]*>', '', fname).strip()
-            if clean_name and not clean_name.endswith('.pdf'):
-                clean_title = clean_name.replace('.docx', '').replace('.doc', '')
-                files_map[clean_title] = fid
-    except Exception as e:
-        pass
-        
-    # Backup กรณี API Folder โดนจำกัดสิทธิ์
-    if not files_map:
-        files_map = {
-            "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-            "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-        }
-    return files_map
+# 📌 คลังสื่อ Sales Note ในโฟลเดอร์ New Media (เรียงตามรายการจริง ไม่มีวันหาย)
+# เมื่อมีสื่อใหม่ เพิ่มชื่อและ File ID หรือ ลิงก์ Word ได้ตรงนี้เลยค่ะ
+DRIVE_DOCX_LINKS = {
+    "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+    "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+    "The 20 (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t"  # ใส่ File ID จริงของ The 20
+}
 
-# ฐานข้อมูลลูกค้าสำรอง (จะถูกรวมกับลูกค้าที่กรอกเพิ่ม)
-DEFAULT_CLIENTS = [
+# ฐานข้อมูลลูกค้า
+CLIENT_DATABASE = [
     {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
     {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
     {"company": "บริษัท สตาร์ริชเชอร์ส กรุ๊ป จำกัด (MG)", "contact_name": "คุณเอ็มจี", "email": "warissara.benz@starrich.co.th"}
 ]
 
-def convert_docx_to_perfect_html(file_id):
-    download_url = f"https://docs.google.com/document/d/{file_id}/export?format=docx"
+def convert_docx_to_perfect_html(file_id_or_url):
+    if "http" in file_id_or_url:
+        download_url = file_id_or_url
+    else:
+        download_url = f"https://docs.google.com/document/d/{file_id_or_url}/export?format=docx"
+        
     req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
     file_bytes = urllib.request.urlopen(req).read()
     
@@ -93,48 +111,41 @@ EMAIL_CSS = """
 """
 
 with st.sidebar:
-    st.title("Plan B Media")
-    st.caption("AUTOMATED EMAIL SYSTEM")
+    st.title("PLAN B MEDIA")
+    st.caption("EMAIL AUTOMATION SYSTEM")
+    st.markdown("---")
     step = st.radio("ขั้นตอนการทำงาน", ["01 เลือกสื่อและจัดการกลุ่มเป้าหมาย", "02 ตรวจสอบพรีวิวและแก้ไขข้อมูล", "03 ยืนยันการส่ง Email"])
-    
-    if st.button("🔄 ดึงสื่อ/ลูกค้าใหม่จาก Drive ทันที"):
-        st.cache_data.clear()
-        st.success("อัปเดตรายการสื่อเรียบร้อยค่ะ!")
 
-st.markdown("## 🏢 PLAN B MEDIA • AUTOMATION ENGINE")
-
-# ดึงไฟล์สื่อใน Drive อัตโนมัติ
-available_media = get_drive_files_auto(FOLDER_ID)
+st.markdown("# 🏢 PLAN B MEDIA • AUTOMATION ENGINE")
 
 # --- STEP 01 ---
 if "01" in step:
     st.subheader("STEP 01 : เลือกสื่อ Sales Note และระบุข้อมูลลูกค้ารายเป้าหมาย")
     col1, col2 = st.columns(2)
     with col1:
-        selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note (อัปเดตอัตโนมัติจาก Google Drive):", list(available_media.keys()))
+        selected_media = st.selectbox("📌 เลือกสื่อ Sales Note (โฟลเดอร์ New Media):", list(DRIVE_DOCX_LINKS.keys()))
         sender_phone = st.text_input("เบอร์โทรศัพท์ติดต่อกลับ (แทนค่า {{Tel}}):", value="0645424441")
 
     with col2:
         st.write("👥 **เลือกลูกค้าจากฐานข้อมูล:**")
-        all_client_options = [f"{c['company']} - {c['contact_name']}" for c in DEFAULT_CLIENTS]
+        all_client_options = [f"{c['company']} - {c['contact_name']}" for c in CLIENT_DATABASE]
         select_all = st.checkbox("✅ เลือกทั้งหมด", value=True)
         default_selected = all_client_options if select_all else []
         selected_clients = st.multiselect("รายการที่เลือก:", options=all_client_options, default=default_selected)
         
-        st.caption("➕ เพิ่มลูกค้ารายใหม่ (ระบบจำนำไปใช้ส่งพร้อมกัน):")
+        st.caption("➕ เพิ่มลูกค้ารายใหม่ (แยกชื่อบริษัท และ ชื่อผู้รับ):")
         custom_company = st.text_input("ชื่อบริษัท:", value="", placeholder="เช่น บริษัท แพลน บี มีเดีย จำกัด (มหาชน)")
         custom_contact = st.text_input("ชื่อผู้รับ/ลูกค้า (Contact Name):", value="", placeholder="เช่น คุณพลอย")
         custom_email = st.text_input("อีเมลลูกค้า:", value="", placeholder="เช่น wichayada.ph@planbmedia.co.th")
 
     st.markdown("---")
     if st.button("🚀 ดึงไฟล์ Word ของสื่อที่เลือก และประมวลผล", type="primary"):
-        file_id = available_media[selected_media_name]
-        with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media_name}' จาก Google Drive..."):
+        with st.spinner(f"กำลังดึงข้อมูลสื่อ '{selected_media}' จาก Google Drive..."):
             try:
-                raw_html, subject, image_store = convert_docx_to_perfect_html(file_id)
+                raw_html, subject, image_store = convert_docx_to_perfect_html(DRIVE_DOCX_LINKS[selected_media])
                 
                 final_targets = []
-                for c in DEFAULT_CLIENTS:
+                for c in CLIENT_DATABASE:
                     if f"{c['company']} - {c['contact_name']}" in selected_clients:
                         final_targets.append(c)
                         
@@ -153,9 +164,9 @@ if "01" in step:
                     st.session_state["subject"] = subject
                     st.session_state["image_store"] = image_store
                     st.session_state["sender_phone"] = sender_phone
-                    st.success(f"ดึงข้อมูลสื่อ '{selected_media_name}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
+                    st.success(f"ดึงข้อมูลสื่อ '{selected_media}' สำเร็จ! ไปที่ STEP 02 เพื่อตรวจเช็คพรีวิวค่ะ")
             except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์ กรุณาเช็คสิทธิ์แชร์ไฟล์ใน Drive: {str(e)}")
+                st.error(f"เกิดข้อผิดพลาดในการดึงไฟล์: {str(e)}")
 
 # --- STEP 02 ---
 elif "02" in step:
@@ -200,7 +211,7 @@ elif "02" in step:
 
         styled_preview = f"""
         {EMAIL_CSS}
-        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; max-width: 720px; margin: 0 auto;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #00A3FF; max-width: 720px; margin: 0 auto; box-shadow: 0px 4px 12px rgba(0,0,0,0.05);">
             {preview_body}
         </div>
         """
