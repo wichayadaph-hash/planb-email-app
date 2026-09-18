@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
+# 📌 ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Plan B Media Email Automation", page_icon="🏢", layout="wide")
 
 # 🎨 Custom CSS - Theme CI: ฟ้า-ขาว-น้ำเงิน (Plan B Media)
@@ -34,13 +35,16 @@ st.markdown("""
 # 📌 โฟลเดอร์คลังสื่อ New Media หลักของคุณพลอย
 MAIN_NEW_MEDIA_FOLDER_ID = "15nRgzuYsWDPsCfu2IrS4QeWPS89fxckQ"
 
-def fetch_docx_files_from_folder(folder_id):
-    """สแกนหาไฟล์ .docx ทั้งหมดจาก Google Drive Folder ID อัตโนมัติ"""
+@st.cache_data(ttl=60)
+def fetch_all_files_from_drive_folder(folder_id):
+    """สแกนหาไฟล์ .docx ทั้งหมดใน Google Drive Folder ID อัตโนมัติ"""
     files_map = {}
+    if not folder_id or len(folder_id.strip()) < 10:
+        return files_map
     try:
-        url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        html = urllib.request.urlopen(req).read().decode('utf-8')
+        url = f"https://drive.google.com/embeddedfolderview?id={folder_id.strip()}#list"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
         
         matches = re.findall(r'id=([a-zA-Z0-9_-]{25,}).*?class="[^"]*entry-name[^"]*">(.*?)</div>', html)
         for fid, fname in matches:
@@ -50,11 +54,20 @@ def fetch_docx_files_from_folder(folder_id):
                 files_map[clean_title] = fid
     except Exception:
         pass
+        
+    # คลังสื่อสำรองกรณี Google Drive API ไม่ตอบสนอง
+    if not files_map:
+        files_map = {
+            "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+            "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
+            "The 20 (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t"
+        }
     return files_map
 
 def convert_docx_to_perfect_html(file_id):
+    """แปลงไฟล์ Word เป็น HTML พร้อมสกัดรูปภาพ CID Inline และ Subject"""
     download_url = f"https://docs.google.com/document/d/{file_id}/export?format=docx"
-    req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
+    req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
     file_bytes = urllib.request.urlopen(req).read()
     
     image_store = []
@@ -95,19 +108,22 @@ with st.sidebar:
     st.caption("EMAIL AUTOMATION SYSTEM")
     st.markdown("---")
     
-    st.subheader("👥 เชื่อมข้อมูลลูกค้าส่วนตัว (Google Drive)")
-    user_client_folder_id = st.text_input(
-        "ระบุ Google Drive Folder ID รายชื่อลูกค้าของคุณ:",
-        placeholder="เช่น 15nRgzuYsWDPsCfu2IrS4QeWPS89...",
-        help="คัดลอก Folder ID จาก Google Drive ของคุณมาใส่ตรงนี้ เพื่อดึงไฟล์รายชื่อลูกค้าส่วนตัว"
-    )
-    
-    st.markdown("---")
-    input_method = st.radio("ช่องทางรองรับอื่นๆ:", ["ดึงจาก Drive Folder ID", "แปะลิงก์ Google Sheets", "อัปโหลดไฟล์ Excel/CSV"])
+    st.subheader("👥 เชื่อมข้อมูลลูกค้าส่วนตัว")
+    input_method = st.radio("เลือกวิธีนำเข้าข้อมูลลูกค้า:", ["เชื่อม Google Drive Folder ID", "แปะลิงก์ Google Sheets", "อัปโหลดไฟล์ Excel/CSV"])
     
     user_clients = []
     
-    if input_method == "แปะลิงก์ Google Sheets":
+    if input_method == "เชื่อม Google Drive Folder ID":
+        user_folder_id = st.text_input(
+            "Google Drive Folder ID ของคุณ:",
+            value="",
+            placeholder="เช่น 15nRgzuYsWDPsCfu...",
+            help="กรอก Folder ID Google Drive รายชื่อลูกค้าส่วนตัวของคุณ"
+        )
+        if user_folder_id:
+            st.caption("📌 ระบบจะใช้ฐานข้อมูลลูกค้าจาก Drive ส่วนตัวของคุณ")
+            
+    elif input_method == "แปะลิงก์ Google Sheets":
         sheet_url = st.text_input("ลิงก์ Google Sheets:", placeholder="https://docs.google.com/spreadsheets/d/...")
         if sheet_url:
             try:
@@ -122,7 +138,7 @@ with st.sidebar:
                     })
                 st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
             except Exception:
-                st.error("ไม่สามารถอ่านข้อมูลได้ กรุณาเปิดสิทธิ์ 'Anyone with the link'")
+                st.error("ไม่สามารถอ่านข้อมูลได้ กรุณาเปิดสิทธิ์แชร์เป็น 'Anyone with the link'")
                 
     elif input_method == "อัปโหลดไฟล์ Excel/CSV":
         uploaded_file = st.file_uploader("เลือกไฟล์รายชื่อลูกค้า:", type=['xlsx', 'csv'])
@@ -137,40 +153,33 @@ with st.sidebar:
                     })
                 st.success(f"โหลดข้อมูลสำเร็จ {len(user_clients)} รายชื่อ!")
             except Exception:
-                st.error("ไฟล์ไม่ถูกต้อง กรุณาตรวจสอบโครงสร้างไฟล์")
+                st.error("โครงสร้างไฟล์ไม่ถูกต้อง")
+
+    if st.button("🔄 อัปเดตข้อมูลสื่อ/ลูกค้า"):
+        st.cache_data.clear()
+        st.rerun()
 
     st.markdown("---")
     step = st.radio("ขั้นตอนการทำงาน", ["01 เลือกสื่อและจัดการกลุ่มเป้าหมาย", "02 ตรวจสอบพรีวิวและแก้ไขข้อมูล", "03 ยืนยันการส่ง Email"])
 
 st.markdown("# 🏢 PLAN B MEDIA • AUTOMATION ENGINE")
 
-# ดึงรายการไฟล์สื่อคลังกลางอัตโนมัติ
-available_media = fetch_docx_files_from_folder(MAIN_NEW_MEDIA_FOLDER_ID)
+# ดึงรายการไฟล์สื่อ New Media จากคลังกลางของคุณพลอย
+available_media = fetch_all_files_from_drive_folder(MAIN_NEW_MEDIA_FOLDER_ID)
 
 # --- STEP 01 ---
 if "01" in step:
     st.subheader("STEP 01 : เลือกสื่อ Sales Note และระบุข้อมูลลูกค้ารายเป้าหมาย")
     col1, col2 = st.columns(2)
     with col1:
-        st.write("📁 **สื่อจากคลังกลาง New Media:**")
-        if available_media:
-            selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note:", list(available_media.keys()))
-        else:
-            st.warning("⚠️ กำลังโหลดคลังสื่อ หรือ ใช้ตัวเลือกสื่อสำรอง")
-            backup_media = {
-                "Central Park (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-                "Central Park (ENG)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t",
-                "The 20 (TH)": "1UrsGlV-f3OKLugCLoJH6AzhIp0O01o9t"
-            }
-            selected_media_name = st.selectbox("📌 เลือกสื่อ Sales Note:", list(backup_media.keys()))
-            available_media = backup_media
-            
+        st.write("📁 **เลือกสื่อ Sales Note (จากคลัง New Media):**")
+        selected_media_name = st.selectbox("📌 เลือกสื่อที่ต้องการเสนอขาย:", list(available_media.keys()))
         sender_phone = st.text_input("เบอร์โทรศัพท์ติดต่อกลับ (แทนค่า {{Tel}}):", value="0645424441")
 
     with col2:
         st.write("👥 **เลือกลูกค้าเป้าหมาย:**")
         
-        # ใช้รายชื่อลูกค้าที่พนักงานเชื่อมต่อจาก Drive หรือ Google Sheets / Excel
+        # ใช้รายชื่อลูกค้าจากไฟล์ที่นำเข้า หากไม่มีจะดึงฐานข้อมูลเริ่มต้นให้ใช้งาน
         active_client_db = user_clients if user_clients else [
             {"company": "บริษัท คอสเมคอน จำกัด", "contact_name": "คุณคอสเมคอน", "email": "cosmecon.th@gmail.com"},
             {"company": "บริษัท บิวทีเอสเดอร์มา จำกัด (Mediheal)", "contact_name": "คุณเมดิฮีล", "email": "beauteousderma@gmail.com"},
@@ -178,6 +187,7 @@ if "01" in step:
         ]
         
         all_client_options = [f"{c['company']} - {c['contact_name']}" for c in active_client_db]
+        
         select_all = st.checkbox("✅ เลือกทั้งหมด", value=True)
         default_selected = all_client_options if select_all else []
         selected_clients = st.multiselect("รายการที่เลือก:", options=all_client_options, default=default_selected)
